@@ -8,12 +8,12 @@ default_dryrun_depth=3
 display_help() {
     echo "This script syncs files from/to a remote host using the rsync tool."
     echo "Usage:"
-    echo "  remote_sync <USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
+    echo "  remote_sync <REMOTE_USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
 }
 
 display_usage() {
     echo "Usage:"
-    echo "  remote_sync <USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
+    echo "  remote_sync <REMOTE_USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
 }
 
 sync() {

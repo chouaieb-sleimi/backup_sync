@@ -21,4 +21,4 @@ This script syncs files from/to a remote host using the rsync tool.
 
 #### Usage
 
-    remote_sync <USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>
+    remote_sync <REMOTE_USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>
