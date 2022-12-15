@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+
+## Variables ##
+log_success=success_backup.log
+log_error=error_backup.log
+
+## Functions ##
+display_help() {
+    echo "This script backs up files in 2 modes, \"full\" and \"lite\". Files defined in \$exclusion_file var are excluded. The rsync tool to perform the backup."
+    echo "Backup successes and errors are logged to \$log_success and \$log_error files under the backup device."
+    echo
+    echo "Usage: backup [type]"
+    echo "  Backup types:"
+    echo "  - full"
+    echo "  - lite"
+    echo
+}
+
+display_usage() {
+    echo "Usage: backup [type]"
+    echo "  Backup types:"
+    echo "  - full"
+    echo "  - lite"
+    echo
+}
+
+backup() {
+    # backup env files
+    for file in ${env_files[@]}; do
+        rsync -av --inplace \
+            --delete $file $device_path/
+    done
+
+    rsync -av --inplace \
+        --delete --delete-excluded \
+        --exclude-from=$exclusion_file \
+        $src_folder/ $dest_folder/ \
+        > >(tee $device_path/$log_success) \
+        2> >(tee $device_path/$log_error)
+}
+
+read_general_variables() {
+    read -p "Device name [$default_device_name]: " device_name
+    device_name=${device_name:-"$default_device_name"}
+    device_path="/run/media/$USER/$device_name"
+
+    if [[ $operation == "full" ]]; then
+        dest_folder="$device_path/home"
+    elif [[ $operation == "lite" ]]; then
+        dest_folder="$device_path/tech"
+    fi
+}
+
+define_backupfull_vars() {
+    src_folder=$HOME
+    default_device_name="Backup"
+    exclusion_file="$HOME/.backupfull_exclusion"
+
+    env_files=(
+        "/etc/hosts"
+    )
+
+    read_general_variables
+}
+
+define_backuplite_vars() {
+    src_folder="$HOME/tech/"
+    default_device_name="BackupLite"
+    exclusion_file="$HOME/.backuplite_exclusion"
+
+    env_files=(
+        "/etc/hosts"
+        "$HOME/.bashrc"
+        "$HOME/.bash_profile"
+        "$HOME/bin"
+        "$HOME/Documents"
+        "$HOME/.backuplite_exclusion"
+        "$HOME/.backupfull_exclusion"
+    )
+
+    read_general_variables
+}
+
+analyse_backup_results() {
+    success_count=$(wc -l $device_path/$log_success | cut -d" " -f1)
+    success_count=$(( $success_count - 4 ))
+    errors_count=$(wc -l $device_path/$log_error | cut -d" " -f1)
+
+    echo
+    echo "- $success_count successful operations"
+    echo "- $errors_count errors occured"
+
+    if [[ $errors_count -gt 0 ]]; then
+        read -p "Review errors? [Y/n] " read_errors
+        read_errors=${read_errors:-y}
+        if [[ $read_errors == "y" ]]; then
+            less $device_path/$log_error
+        fi
+    fi
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        display_help
+        exit 0
+
+    elif [[ $# -eq 1 ]]; then
+        operation=$1
+        case $operation in
+        "full")
+            define_backupfull_vars
+            ;;
+
+        "lite")
+            define_backuplite_vars
+            ;;
+
+        *)
+            echo "[ERROR] Arguments error"
+            display_usage
+            exit 1
+            ;;
+        esac
+    fi
+
+    if [[ -d $device_path ]]; then
+        if [[ ! -d "$dest_folder" ]]; then
+            mkdir -p "$dest_folder"
+        fi
+
+        backup
+        analyse_backup_results
+        exit 0
+    else
+        echo "Backup device \"$device_name\" not found"
+        exit 1
+    fi
+}
+
+## Script start ##
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main $@
+fi

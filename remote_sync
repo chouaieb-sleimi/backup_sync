@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+
+## Variables ##
+sleep_duration=10
+default_dryrun_depth=3
+
+## Functions ##
+display_help() {
+    echo "This script syncs files from/to a remote host using the rsync tool."
+    echo "Usage:"
+    echo "  remote_sync <USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
+}
+
+display_usage() {
+    echo "Usage:"
+    echo "  remote_sync <USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
+}
+
+sync() {
+    if [ $sync_type = "get" ]; then
+        # download from control machine
+        rsync -avz -e ssh \
+            --delete \
+            -r $remote_user@$remote_hostname:$remote_folder/* \
+            $host_folder/
+    elif [ $sync_type = "set" ]; then
+        # upload to control machine
+        rsync -avz -e ssh \
+            --delete \
+            -r $host_folder/ \
+            $remote_user@$remote_hostname:$remote_folder/*
+    fi
+}
+
+# Perform a sync dry run
+dry_run() {
+    tmp_file=$(mktemp)
+    # Perform a sync dry run
+    if [ $sync_type = "get" ]; then
+        rsync -avz -e ssh \
+            --delete \
+            --dry-run \
+            -r $remote_user@$remote_hostname:$remote_folder/* \
+            $host_folder/ >>$tmp_file
+
+    elif [ $sync_type = "set" ]; then
+        rsync -avz -e ssh \
+            --delete \
+            --dry-run \
+            -r $host_folder/ \
+            $remote_user@$remote_hostname:$remote_folder/* >>$tmp_file
+    fi
+}
+
+# dry-run formatting
+dry_run_display() {
+
+    if [ $sync_type = "get" ]; then
+        echo "These modifications will be applied to \"$(hostname -s)\""
+    elif [ $sync_type = "set" ]; then
+        echo "These modifications will be applied to \"$remote_hostname\""
+    fi
+    dry_run
+    dry_run_size=$(wc -l $tmp_file | cut -d" " -f1)
+    dryrun_result=$(mktemp)
+
+    # isolating dry-run files
+    tail -n $(expr $dry_run_size - 1) $tmp_file | head -n $(expr $dry_run_size - 4) >>$dryrun_result
+    # display deletion list first
+    grep "deleting" $dryrun_result | cut -d"/" -f -$dry_run_depth | sort | uniq -c | sort
+
+    # display sync list
+    grep -v "deleting" $dryrun_result | cut -d"/" -f -$dry_run_depth | sort | uniq -c | sort
+    rm $tmp_file
+    rm $dryrun_result
+}
+
+read_variables() {
+    # get variables
+    while [[ $sync_type != "get" && $sync_type != "set" ]]; do
+        read -p "Sync type? (get/set): " sync_type
+    done
+
+    dry_run_depth=0
+    while [[ $dry_run_depth -lt 1 ]]; do
+        read -p "Dry run depth? [$default_dryrun_depth]: " dry_run_depth
+        dry_run_depth=${dry_run_depth:-$default_dryrun_depth}
+    done
+
+    # Execute dry run before sync
+    dry_run_display
+    if [[ $sync_type == "get" ]]; then
+        read -p "Get files from $remote_hostname? (y/N): " verif
+    elif [[ $sync_type == "set" ]]; then
+        read -p "Send files to $remote_hostname? (y/N): " verif
+    fi
+    verif=${verif:-N}
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        display_help
+
+    elif [[ $# -eq 4 ]]; then
+        remote_user=$1
+        remote_hostname=$2
+        remote_folder=$3
+        host_folder=$4
+
+        read_variables
+
+        if [[ $verif = "y" ||
+            $verif = "Y" ||
+            $verif = "yes" ||
+            $verif = "YES" ]]; then
+            echo -e "Syncing files in $sleep_duration seconds\n"
+            sleep $sleep_duration
+            sync
+            exit 0
+        fi
+    else
+        echo "[ERROR] Arguments error"
+        display_usage
+        exit 1
+    fi
+}
+
+## Script start ##
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main $@
+fi
