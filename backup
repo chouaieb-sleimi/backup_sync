@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
+#set -xv
 
 ###################
 ## Variables
 
-log_success=success_backup.log
-log_error=error_backup.log
+log_success="success_backup.log"
+log_error="error_backup.log"
+backup_conf="$HOME/.backup_config"
 
 ###################
 ## Functions
-
-## Help ##
 
 display_help() {
     echo "This script backs up files in 2 modes, \"full\" and \"lite\". Files defined in \$exclusion_file var are excluded. The rsync tool to perform the backup."
@@ -30,54 +30,33 @@ display_usage() {
     echo
 }
 
-## Pre Backup ##
+read_variables() {
+    if [[ $operation == "full" ]]; then
+        src_folder=$HOME
+        default_device_name="Backup"
+        exclusion_file="$backup_conf/backupfull_exclusion"
+        env_files="$backup_conf/backupfull_envfiles"
 
-# Define default values here
-define_backupfull_vars() {
-    src_folder=$HOME
-    default_device_name="Backup"
-    exclusion_file="$HOME/.backupfull_exclusion"
-    env_files=(
-        "/etc/hosts"
-    )
-    read_general_variables
-}
+    elif [[ $operation == "lite" ]]; then
+        src_folder="$HOME/tech/"
+        default_device_name="BackupLite"
+        exclusion_file="$backup_conf/backuplite_exclusion"
+        env_files="$backup_conf/backuplite_envfiles"
+    fi
 
-# Define default values here
-define_backuplite_vars() {
-    src_folder="$HOME/tech/"
-    default_device_name="BackupLite"
-    exclusion_file="$HOME/.backuplite_exclusion"
-    env_files=(
-        "/etc/hosts"
-        "$HOME/.bashrc"
-        "$HOME/.bashrc.d"
-        "$HOME/.bash_profile"
-        "$HOME/.ssh"
-        "$HOME/bin"
-        "$HOME/Documents"
-        "$HOME/.backuplite_exclusion"
-        "$HOME/.backupfull_exclusion"
-    )
-    read_general_variables
-}
-
-read_general_variables() {
     read -p "Device name [$default_device_name]: " device_name
     device_name=${device_name:-"$default_device_name"}
     device_path="/run/media/$USER/$device_name"
 
     if [[ $operation == "full" ]]; then
         dest_folder="$device_path/home"
+
     elif [[ $operation == "lite" ]]; then
         dest_folder="$device_path/tech"
     fi
 }
 
-## Backup ##
-
 backup() {
-
     # clean previous timestamp
     if [[ $(find $device_path/ -maxdepth 1 -name "timestamp*") ]]; then
         rm $device_path/timestamp*
@@ -92,7 +71,7 @@ backup() {
 EOF
     unset timestamp
 
-    # backup repolist
+    # backup repo list
     rsync -av --inplace \
         --delete \
         --chown=chouaieb:chouaieb \
@@ -102,7 +81,10 @@ EOF
     rpm -qa >$device_path/package_list
 
     # backup env files
-    for file in ${env_files[@]}; do
+    files=$(cat $env_files)
+    files=$(eval echo $files)
+
+    for file in $files; do
         rsync -av --inplace \
             --delete \
             $file $device_path/
@@ -120,27 +102,25 @@ EOF
         2> >(tee $device_path/$log_error)
 }
 
-## Post Backup ##
-
 analyse_backup_results() {
-    success_count=$(wc -l $device_path/$log_success | cut -d" " -f1)
-    success_count=$(($success_count - 4))
-    errors_count=$(wc -l $device_path/$log_error | cut -d" " -f1)
+    if [[ -f $device_path/$log_error && -f $device_path/$log_success ]]; then
+        success_count=$(wc -l $device_path/$log_success | cut -d" " -f1)
+        success_count=$(($success_count - 4))
+        errors_count=$(wc -l $device_path/$log_error | cut -d" " -f1)
 
-    echo
-    echo "- $success_count successful operations"
-    echo "- $errors_count errors occured"
+        echo
+        echo "- $success_count successful operations"
+        echo "- $errors_count errors occured"
 
-    if [[ $errors_count -gt 0 ]]; then
-        read -p "Review errors? [Y/n] " read_errors
-        read_errors=${read_errors:-y}
-        if [[ $read_errors == "y" ]]; then
-            less $device_path/$log_error
+        if [[ $errors_count -gt 0 ]]; then
+            read -p "Review errors? [Y/n] " read_errors
+            read_errors=${read_errors:-y}
+            if [[ $read_errors == "y" ]]; then
+                less $device_path/$log_error
+            fi
         fi
     fi
 }
-
-## Main ##
 
 main() {
     if [[ $# -eq 0 ]]; then
@@ -149,21 +129,13 @@ main() {
 
     elif [[ $# -eq 1 ]]; then
         operation=$1
-        case $operation in
-        "full")
-            define_backupfull_vars
-            ;;
-
-        "lite")
-            define_backuplite_vars
-            ;;
-
-        *)
+        if [[ $operation != "full" && $operation != "lite" ]]; then
             echo "[ERROR] Arguments error"
             display_usage
             exit 1
-            ;;
-        esac
+        else
+            read_variables
+        fi
     fi
 
     if [[ -d $device_path ]]; then
