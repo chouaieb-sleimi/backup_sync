@@ -24,13 +24,43 @@ display_usage() {
     echo
 }
 
+# run backup
 backup() {
+
+    # clean previous timestamp
+    if [[ $(find $device_path/ -maxdepth 1 -name "timestamp*") ]]; then
+        rm $device_path/timestamp*
+    fi
+
+    # write new timestamp
+    timestamp=$(date +%Y-%m-%d_%H%M%S)
+    cat >$device_path/timestamp.$timestamp <<EOF
+=======================================
+= backup performed at $timestamp
+=======================================
+EOF
+    unset timestamp
+
+    # backup repolist
+    rsync -av --inplace \
+        --delete \
+        --chown=chouaieb:chouaieb \
+        /etc/yum.repos.d $device_path/
+
+    # backup package list
+    rpm -qa >$device_path/package_list
+
     # backup env files
     for file in ${env_files[@]}; do
         rsync -av --inplace \
-            --delete $file $device_path/
+            --delete \
+            $file $device_path/
     done
 
+    # backup vs code's extension list
+    code --list-extensions >$device_path/code_extensions
+
+    # backup src_folder
     rsync -av --inplace \
         --delete --delete-excluded \
         --exclude-from=$exclusion_file \
@@ -51,39 +81,39 @@ read_general_variables() {
     fi
 }
 
+# Define default values here
 define_backupfull_vars() {
     src_folder=$HOME
     default_device_name="Backup"
     exclusion_file="$HOME/.backupfull_exclusion"
-
     env_files=(
         "/etc/hosts"
     )
-
     read_general_variables
 }
 
+# Define default values here
 define_backuplite_vars() {
     src_folder="$HOME/tech/"
     default_device_name="BackupLite"
     exclusion_file="$HOME/.backuplite_exclusion"
-
     env_files=(
         "/etc/hosts"
         "$HOME/.bashrc"
+        "$HOME/.bashrc.d"
         "$HOME/.bash_profile"
+        "$HOME/.ssh"
         "$HOME/bin"
         "$HOME/Documents"
         "$HOME/.backuplite_exclusion"
         "$HOME/.backupfull_exclusion"
     )
-
     read_general_variables
 }
 
 analyse_backup_results() {
     success_count=$(wc -l $device_path/$log_success | cut -d" " -f1)
-    success_count=$(( $success_count - 4 ))
+    success_count=$(($success_count - 4))
     errors_count=$(wc -l $device_path/$log_error | cut -d" " -f1)
 
     echo
