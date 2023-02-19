@@ -23,12 +23,12 @@ sync() {
             --delete \
             -r $remote_user@$remote_hostname:$remote_folder/* \
             $host_folder/
-    elif [ $sync_type = "set" ]; then
+    elif [ $sync_type = "send" ]; then
         # upload to control machine
         rsync -avz -e ssh \
             --delete \
             -r $host_folder/ \
-            $remote_user@$remote_hostname:$remote_folder/*
+            $remote_user@$remote_hostname:$remote_folder/
     fi
 }
 
@@ -43,7 +43,7 @@ dry_run() {
             -r $remote_user@$remote_hostname:$remote_folder/* \
             $host_folder/ >>$tmp_file
 
-    elif [ $sync_type = "set" ]; then
+    elif [ $sync_type = "send" ]; then
         rsync -avz -e ssh \
             --delete \
             --dry-run \
@@ -57,7 +57,7 @@ dry_run_display() {
 
     if [ $sync_type = "get" ]; then
         echo "These modifications will be applied to \"$(hostname -s)\""
-    elif [ $sync_type = "set" ]; then
+    elif [ $sync_type = "send" ]; then
         echo "These modifications will be applied to \"$remote_hostname\""
     fi
     dry_run
@@ -66,19 +66,22 @@ dry_run_display() {
 
     # isolating dry-run files
     tail -n $(expr $dry_run_size - 1) $tmp_file | head -n $(expr $dry_run_size - 4) >>$dryrun_result
+
     # display deletion list first
     grep "deleting" $dryrun_result | cut -d"/" -f -$dry_run_depth | sort | uniq -c | sort
 
-    # display sync list
+    # display file list second
     grep -v "deleting" $dryrun_result | cut -d"/" -f -$dry_run_depth | sort | uniq -c | sort
+
+    # clean temp files
     rm $tmp_file
     rm $dryrun_result
 }
 
 read_variables() {
     # get variables
-    while [[ $sync_type != "get" && $sync_type != "set" ]]; do
-        read -p "Sync type? (get/set): " sync_type
+    while [[ $sync_type != "get" && $sync_type != "send" ]]; do
+        read -p "Sync type? (get/send): " sync_type
     done
 
     dry_run_depth=0
@@ -91,7 +94,7 @@ read_variables() {
     dry_run_display
     if [[ $sync_type == "get" ]]; then
         read -p "Get files from $remote_hostname? (y/N): " verif
-    elif [[ $sync_type == "set" ]]; then
+    elif [[ $sync_type == "send" ]]; then
         read -p "Send files to $remote_hostname? (y/N): " verif
     fi
     verif=${verif:-N}
