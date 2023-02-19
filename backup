@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 
-## Variables ##
+###################
+## Variables
+
 log_success=success_backup.log
 log_error=error_backup.log
 
-## Functions ##
+###################
+## Functions
+
+## Help ##
+
 display_help() {
     echo "This script backs up files in 2 modes, \"full\" and \"lite\". Files defined in \$exclusion_file var are excluded. The rsync tool to perform the backup."
     echo "Backup successes and errors are logged to \$log_success and \$log_error files under the backup device."
@@ -24,7 +30,52 @@ display_usage() {
     echo
 }
 
-# run backup
+## Pre Backup ##
+
+# Define default values here
+define_backupfull_vars() {
+    src_folder=$HOME
+    default_device_name="Backup"
+    exclusion_file="$HOME/.backupfull_exclusion"
+    env_files=(
+        "/etc/hosts"
+    )
+    read_general_variables
+}
+
+# Define default values here
+define_backuplite_vars() {
+    src_folder="$HOME/tech/"
+    default_device_name="BackupLite"
+    exclusion_file="$HOME/.backuplite_exclusion"
+    env_files=(
+        "/etc/hosts"
+        "$HOME/.bashrc"
+        "$HOME/.bashrc.d"
+        "$HOME/.bash_profile"
+        "$HOME/.ssh"
+        "$HOME/bin"
+        "$HOME/Documents"
+        "$HOME/.backuplite_exclusion"
+        "$HOME/.backupfull_exclusion"
+    )
+    read_general_variables
+}
+
+read_general_variables() {
+    read -p "Device name [$default_device_name]: " device_name
+    device_name=${device_name:-"$default_device_name"}
+    device_path="/run/media/$USER/$device_name"
+
+    if [[ $operation == "full" ]]; then
+        dest_folder="$device_path/home"
+    elif [[ $operation == "lite" ]]; then
+        dest_folder="$device_path/tech"
+    fi
+}
+
+## Backup ##
+
 backup() {
 
     # clean previous timestamp
@@ -69,47 +120,7 @@ EOF
         2> >(tee $device_path/$log_error)
 }
 
-read_general_variables() {
-    read -p "Device name [$default_device_name]: " device_name
-    device_name=${device_name:-"$default_device_name"}
-    device_path="/run/media/$USER/$device_name"
-
-    if [[ $operation == "full" ]]; then
-        dest_folder="$device_path/home"
-    elif [[ $operation == "lite" ]]; then
-        dest_folder="$device_path/tech"
-    fi
-}
-
-# Define default values here
-define_backupfull_vars() {
-    src_folder=$HOME
-    default_device_name="Backup"
-    exclusion_file="$HOME/.backupfull_exclusion"
-    env_files=(
-        "/etc/hosts"
-    )
-    read_general_variables
-}
-
-# Define default values here
-define_backuplite_vars() {
-    src_folder="$HOME/tech/"
-    default_device_name="BackupLite"
-    exclusion_file="$HOME/.backuplite_exclusion"
-    env_files=(
-        "/etc/hosts"
-        "$HOME/.bashrc"
-        "$HOME/.bashrc.d"
-        "$HOME/.bash_profile"
-        "$HOME/.ssh"
-        "$HOME/bin"
-        "$HOME/Documents"
-        "$HOME/.backuplite_exclusion"
-        "$HOME/.backupfull_exclusion"
-    )
-    read_general_variables
-}
+## Post Backup ##
 
 analyse_backup_results() {
     success_count=$(wc -l $device_path/$log_success | cut -d" " -f1)
@@ -128,6 +139,8 @@ analyse_backup_results() {
         fi
     fi
 }
+
+## Main ##
 
 main() {
     if [[ $# -eq 0 ]]; then
@@ -167,7 +180,9 @@ main() {
     fi
 }
 
-## Script start ##
+###################
+## Script start
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     main $@
 fi
