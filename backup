@@ -42,6 +42,46 @@ exit_error() {
     exit 1
 }
 
+main() {
+    # when called with no argument
+    [[ $@ == "" ]] && display_help && exit 0
+
+    # only allow POSIX arguments
+    [[ $(echo "$@" | grep -vE "^(-.( [a-z]+)?)$") ]] && exit_error
+
+    while getopts :p:h option; do
+        case $option in
+        p)
+            profile=$OPTARG
+            read_variables
+
+            [[ ! -d $src_folder ]] && echo "Source folder $src_folder not found" && exit_error
+            [[ ! -d $device_path ]] && echo "Backup device \"$device_name\" not found" && exit_error
+            [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder"
+
+            backup
+            analyse_backup_results
+            exit 0
+            ;;
+        h)
+            display_help
+            ;;
+        :)
+            [[ $OPTARG == "p" ]] && echo "ERROR | PROFILE required"
+            exit_error
+            ;;
+        ?)
+            echo "ERROR | unkown option -$OPTARG"
+            exit_error
+            ;;
+        *)
+            echo "ERROR | invalid operation $*"
+            exit_error
+            ;;
+        esac
+    done
+}
+
 read_variables() {
     # read exclusion_file
     exclusion_file="$backup_conf/backup${profile}_exclusion"
@@ -120,46 +160,6 @@ analyse_backup_results() {
             [[ $read_errors == "y" ]] && less $device_path/$log_error
         fi
     fi
-}
-
-main() {
-    # when called with no argument
-    [[ $@ == "" ]] && display_help && exit 0
-
-    # only allow POSIX arguments
-    [[ $(echo "$@" | grep -vE "^(-.( [a-z]+)?)$") ]] && exit_error
-
-    while getopts :p:h option; do
-        case $option in
-        p)
-            profile=$OPTARG
-            read_variables
-
-            [[ ! -d $src_folder ]] && echo "Source folder $src_folder not found" && exit_error
-            [[ ! -d $device_path ]] && echo "Backup device \"$device_name\" not found" && exit_error
-            [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder"
-
-            backup
-            analyse_backup_results
-            exit 0
-            ;;
-        h)
-            display_help
-            ;;
-        :)
-            [[ $OPTARG == "p" ]] && echo "ERROR | PROFILE required"
-            exit_error
-            ;;
-        ?)
-            echo "ERROR | unkown option -$OPTARG"
-            exit_error
-            ;;
-        *)
-            echo "ERROR | invalid operation $*"
-            exit_error
-            ;;
-        esac
-    done
 }
 
 ###################
