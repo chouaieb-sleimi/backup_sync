@@ -11,28 +11,47 @@ backup_conf="$HOME/.backup_config"
 ###################
 ## Functions
 
+display_usage() {
+    echo "Usage: backup [-h] [-p PROFILE]"
+}
+
 display_help() {
-    echo "This script backs up files in 2 modes, \"full\" and \"lite\". Files defined in \$exclusion_file var are excluded. The rsync tool to perform the backup."
-    echo "Backup successes and errors are logged to \$log_success and \$log_error files under the backup device."
+    display_usage
     echo
-    echo "Usage: backup [type]"
-    echo "  Backup types:"
-    echo "  - full"
-    echo "  - lite"
+    echo "This script backs up files based on different backup profiles."
+    echo "Each backup profile has one backup source and destination and"
+    echo "multiple environment files outside the source and destination"
+    echo "folders."
+    echo
+    echo "Each backup profile uses 2 variable files under \$backup_conf, "
+    echo "\"backup[PROFILE]_vars\" and \"backup[PROFILE]_exclusion\"."
+    echo "\"backup[PROFILE]_vars\" is a shell script that devines variables "
+    echo "specific to each backup profile. \"backup[PROFILE]_exclusion\""
+    echo "file defines variables to be excluded from the backup source"
+    echo
+    echo "backup[PROFILE]_vars:"
+    echo "  src_folder=$HOME"
+    echo "  env_files=(/etc/hosts)"
+    echo "  device_path=/run/media/dave/backupUSB"
+    echo "  dest_folder=\$device_path/homeBackup"
     echo
 }
 
-display_usage() {
-    echo "Usage: backup [type]"
-    echo "  Backup types:"
-    echo "  - full"
-    echo "  - lite"
-    echo
+exit_error() {
+    display_usage
+    exit 1
 }
 
 read_variables() {
-    [[ $operation == "full" ]] && source $backup_conf/backupfull_vars
-    [[ $operation == "lite" ]] && source $backup_conf/backuplite_vars
+    # read exclusion_file
+    exclusion_file="$backup_conf/backup${profile}_exclusion"
+    [[ ! -f $exclusion_file ]] && echo "ERROR | $exclusion_file file doesn't exist" && error="true"
+
+    # read vars_script
+    vars_script=$backup_conf/backup${profile}_vars
+    [[ ! -f $vars_script ]] && echo "ERROR | $vars_script script doesn't exist" && error="true"
+
+    [[ -n $error ]] && exit 1 || source $vars_script
 }
 
 backup() {
@@ -104,27 +123,43 @@ analyse_backup_results() {
 }
 
 main() {
-    if [[ $# -eq 0 ]]; then
-        display_help
-        exit 0
+    # when called with no argument
+    [[ $@ == "" ]] && display_help && exit 0
 
-    elif [[ $# -eq 1 ]]; then
-        operation=$1
-        if [[ $operation != "full" && $operation != "lite" ]]; then
-            echo "[ERROR] Arguments error"
-            display_usage
-            exit 1
-        else
+    # only allow POSIX arguments
+    [[ $(echo "$@" | grep -vE "^(-.( [a-z]+)?)$") ]] && exit_error
+
+    while getopts :p:h option; do
+        case $option in
+        p)
+            profile=$OPTARG
             read_variables
-        fi
-    fi
 
-    [[ ! -d $device_path ]] && echo "Backup device \"$device_name\" not found" && exit 1
-    [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder"
+            [[ ! -d $src_folder ]] && echo "Source folder $src_folder not found" && exit_error
+            [[ ! -d $device_path ]] && echo "Backup device \"$device_name\" not found" && exit_error
+            [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder"
 
-    backup
-    analyse_backup_results
-    exit 0
+            backup
+            analyse_backup_results
+            exit 0
+            ;;
+        h)
+            display_help
+            ;;
+        :)
+            [[ $OPTARG == "p" ]] && echo "ERROR | PROFILE required"
+            exit_error
+            ;;
+        ?)
+            echo "ERROR | unkown option -$OPTARG"
+            exit_error
+            ;;
+        *)
+            echo "ERROR | invalid operation $*"
+            exit_error
+            ;;
+        esac
+    done
 }
 
 ###################
