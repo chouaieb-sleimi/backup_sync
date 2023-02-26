@@ -32,27 +32,9 @@ display_usage() {
 
 read_variables() {
     if [[ $operation == "full" ]]; then
-        src_folder=$HOME
-        default_device_name="Backup"
-        exclusion_file="$backup_conf/backupfull_exclusion"
-        env_files="$backup_conf/backupfull_envfiles"
-
+        source $backup_conf/backupfull_vars
     elif [[ $operation == "lite" ]]; then
-        src_folder="$HOME/tech/"
-        default_device_name="BackupLite"
-        exclusion_file="$backup_conf/backuplite_exclusion"
-        env_files="$backup_conf/backuplite_envfiles"
-    fi
-
-    read -p "Device name [$default_device_name]: " device_name
-    device_name=${device_name:-"$default_device_name"}
-    device_path="/run/media/$USER/$device_name"
-
-    if [[ $operation == "full" ]]; then
-        dest_folder="$device_path/home"
-
-    elif [[ $operation == "lite" ]]; then
-        dest_folder="$device_path/tech"
+        source $backup_conf/backuplite_vars
     fi
 }
 
@@ -81,10 +63,7 @@ EOF
     rpm -qa >$device_path/package_list
 
     # backup env files
-    files=$(cat $env_files)
-    files=$(eval echo $files)
-
-    for file in $files; do
+    for file in ${env_files[@]}; do
         rsync -av --inplace \
             --delete \
             $file $device_path/
