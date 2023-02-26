@@ -31,18 +31,13 @@ display_usage() {
 }
 
 read_variables() {
-    if [[ $operation == "full" ]]; then
-        source $backup_conf/backupfull_vars
-    elif [[ $operation == "lite" ]]; then
-        source $backup_conf/backuplite_vars
-    fi
+    [[ $operation == "full" ]] && source $backup_conf/backupfull_vars
+    [[ $operation == "lite" ]] && source $backup_conf/backuplite_vars
 }
 
 backup() {
     # clean previous timestamp
-    if [[ $(find $device_path/ -maxdepth 1 -name "timestamp*") ]]; then
-        rm $device_path/timestamp*
-    fi
+    [[ $(find $device_path/ -maxdepth 1 -name "timestamp*") ]] && rm $device_path/timestamp*
 
     # write new timestamp
     timestamp=$(date +%Y-%m-%d_%H%M%S)
@@ -53,24 +48,7 @@ backup() {
 EOF
     unset timestamp
 
-    # backup repo list
-    rsync -av --inplace \
-        --delete \
-        --chown=chouaieb:chouaieb \
-        /etc/yum.repos.d $device_path/
-
-    # backup package list
-    rpm -qa >$device_path/package_list
-
-    # backup env files
-    for file in ${env_files[@]}; do
-        rsync -av --inplace \
-            --delete \
-            $file $device_path/
-    done
-
-    # backup vs code's extension list
-    code --list-extensions >$device_path/code_extensions
+    backup_env_files
 
     # backup src_folder
     rsync -av --inplace \
@@ -79,6 +57,31 @@ EOF
         $src_folder/ $dest_folder/ \
         > >(tee $device_path/$log_success) \
         2> >(tee $device_path/$log_error)
+}
+
+backup_env_files() {
+    env_files_dest="$device_path/env_files"
+    # create $env_files_dest dir
+    [[ ! -d $env_files_dest ]] && mkdir $env_files_dest
+
+    # backup repo list
+    rsync -av --inplace \
+        --delete \
+        --chown=chouaieb:chouaieb \
+        /etc/yum.repos.d $env_files_dest/
+
+    # backup package list
+    rpm -qa >$env_files_dest/package_list
+
+    # backup env files
+    for file in ${env_files[@]}; do
+        rsync -av --inplace \
+            --delete \
+            $file $env_files_dest/
+    done
+
+    # backup vs code's extension list
+    code --list-extensions >$env_files_dest/code_extensions
 }
 
 analyse_backup_results() {
@@ -94,9 +97,8 @@ analyse_backup_results() {
         if [[ $errors_count -gt 0 ]]; then
             read -p "Review errors? [Y/n] " read_errors
             read_errors=${read_errors:-y}
-            if [[ $read_errors == "y" ]]; then
-                less $device_path/$log_error
-            fi
+
+            [[ $read_errors == "y" ]] && less $device_path/$log_error
         fi
     fi
 }
@@ -117,23 +119,15 @@ main() {
         fi
     fi
 
-    if [[ -d $device_path ]]; then
-        if [[ ! -d "$dest_folder" ]]; then
-            mkdir -p "$dest_folder"
-        fi
+    [[ ! -d $device_path ]] && echo "Backup device \"$device_name\" not found" && exit 1
+    [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder"
 
-        backup
-        analyse_backup_results
-        exit 0
-    else
-        echo "Backup device \"$device_name\" not found"
-        exit 1
-    fi
+    backup
+    analyse_backup_results
+    exit 0
 }
 
 ###################
 ## Script start
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    main $@
-fi
+[[ "${BASH_SOURCE[0]}" == "$0" ]] && main $@
