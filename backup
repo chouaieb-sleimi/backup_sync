@@ -18,22 +18,16 @@ display_usage() {
 display_help() {
     display_usage
     echo
-    echo "This script backs up files based on different backup profiles."
-    echo "Each backup profile has one backup source and destination and"
-    echo "multiple environment files outside the source and destination"
-    echo "folders."
+    echo "This script backs up files based on different backup profiles. Each backup profile has one backup source and destination folders and multiple environment files outside the source and destination folders."
     echo
-    echo "Each backup profile uses 2 variable files under \$backup_conf, "
-    echo "\"backup[PROFILE]_vars\" and \"backup[PROFILE]_exclusion\"."
-    echo "\"backup[PROFILE]_vars\" is a shell script that devines variables "
-    echo "specific to each backup profile. \"backup[PROFILE]_exclusion\""
-    echo "file defines variables to be excluded from the backup source"
+    echo "Each backup profile uses 2 variable files under the folder defined in \$backup_conf variable; \"backup_[PROFILE]_vars\" and \"backup_[PROFILE]_exclusion\"."
+    echo "\"backup_[PROFILE]_vars\" is a shell script that defines variables specific to each backup profile. \"backup_[PROFILE]_exclusion\" file defines files and/or folders that are excluded from the backup source."
     echo
-    echo "backup[PROFILE]_vars:"
-    echo "  src_folder=$HOME"
-    echo "  env_files=(/etc/hosts)"
-    echo "  device_path=/run/media/dave/backupUSB"
-    echo "  dest_folder=\$device_path/homeBackup"
+    echo "backup_[PROFILE]_vars example:"
+    echo "    src_folder=\$HOME"
+    echo "    env_files=(/etc/hosts)"
+    echo "    device_path=/run/media/dave/backupUSB"
+    echo "    dest_folder=\$device_path/homeBackup"
     echo
 }
 
@@ -84,14 +78,14 @@ main() {
 
 read_variables() {
     # read exclusion_file
-    exclusion_file="$backup_conf/backup${profile}_exclusion"
+    exclusion_file="$backup_conf/backup_${profile}_exclusion"
     [[ ! -f $exclusion_file ]] && echo "ERROR | $exclusion_file file doesn't exist" && error="true"
 
-    # read vars_script
-    vars_script=$backup_conf/backup${profile}_vars
-    [[ ! -f $vars_script ]] && echo "ERROR | $vars_script script doesn't exist" && error="true"
+    # read vars_file
+    vars_file="$backup_conf/backup_${profile}_vars"
+    [[ ! -f $vars_file ]] && echo "ERROR | $vars_file file doesn't exist" && error="true"
 
-    [[ -n $error ]] && exit 1 || source $vars_script
+    [[ -n $error ]] && exit 1 || source $vars_file
 }
 
 backup() {
@@ -140,7 +134,7 @@ backup_env_files() {
     done
 
     # backup vs code's extension list
-    code --list-extensions >$env_files_dest/code_extensions
+    code --list-extensions --profile $vscode_profile >$env_files_dest/code_extensions
 }
 
 analyse_backup_results() {

@@ -6,7 +6,9 @@ default_dryrun_depth=3
 
 ## Functions ##
 display_help() {
-    echo "This script syncs files from/to a remote host using the rsync tool."
+    echo "This script syncs files from/to a remote host using the rsync tool. Before sending or fetching files it will first perform a dry run and display transfered files with a variabilised folder tree depth."
+    echo "After the dry run, User confirmation will be asked to synchronize files."
+    echo
     echo "Usage:"
     echo "  remote_sync <REMOTE_USER> <REMOTE_HOST> <REMOTE_DIR> <LOCAL_DIR>"
 }
@@ -116,7 +118,7 @@ main() {
             $verif = "Y" ||
             $verif = "yes" ||
             $verif = "YES" ]]; then
-            echo -e "Syncing files in $sleep_duration seconds\n"
+            echo -e "Syncing files in $sleep_duration seconds..\n"
             sleep $sleep_duration
             sync
             exit 0
