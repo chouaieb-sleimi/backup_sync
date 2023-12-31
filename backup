@@ -8,6 +8,19 @@ log_success="success_backup.log"
 log_error="error_backup.log"
 backup_conf="$HOME/.backup_config"
 
+# defined in $backup_conf/backup_${PROFILE}_vars
+#  # backup source paths
+#  src_folder=
+#  env_files=()
+#
+#  # backup destintaion and device paths
+#  default_device_name=
+#  device_name=
+#  device_path=
+#  dest_folder=
+#
+#  vscode_profile="base"
+
 ###################
 ## Functions
 
@@ -49,8 +62,8 @@ main() {
             profile=$OPTARG
             read_variables
 
-            [[ ! -d $src_folder ]] && echo "Source folder $src_folder not found" && exit_error
-            [[ ! -d $device_path ]] && echo "Backup device \"$device_name\" not found" && exit_error
+            [[ ! -d $src_folder ]] && echo "ERROR | Source folder $src_folder not found" && exit_error
+            [[ ! -d $device_path ]] && echo "ERROR | Backup device \"$device_name\" not found" && exit_error
             [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder"
 
             backup
@@ -79,13 +92,17 @@ main() {
 read_variables() {
     # read exclusion_file
     exclusion_file="$backup_conf/backup_${profile}_exclusion"
+    [[ -f $exclusion_file ]] && echo "reading exclusion list from config file: ${exclusion_file}"
     [[ ! -f $exclusion_file ]] && echo "ERROR | $exclusion_file file doesn't exist" && error="true"
 
     # read vars_file
     vars_file="$backup_conf/backup_${profile}_vars"
+    [[ -f $vars_file ]] && echo "reading backup vars from config file: ${vars_file}"
     [[ ! -f $vars_file ]] && echo "ERROR | $vars_file file doesn't exist" && error="true"
 
     [[ -n $error ]] && exit 1 || source $vars_file
+    echo ""
+    echo ""
 }
 
 backup() {
