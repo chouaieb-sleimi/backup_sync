@@ -6,10 +6,7 @@
 
 - [Backup and Synchronization Scripts](#backup-and-synchronization-scripts)
     - [backup](#backup)
-      - [:speech_balloon: Description](#speech_balloon-description)
-      - [:wrench: Configuration and Setup](#wrench-configuration-and-setup)
     - [remote_sync](#remote_sync)
-      - [:speech_balloon: Description](#speech_balloon-description-1)
 
 <!-- /code_chunk_output -->
 
@@ -23,8 +20,6 @@ This repository contains wrapper scripts for the rsync tool.
 
 ### backup
 
-#### :speech_balloon: Description
-
 This tool allowes you to define multiple backup profiles backs up files based on them.
 Backup profiles can be customized to suit different needs, for example, targeting different backup devices, backup specific folders/files and so on.
 
@@ -34,7 +29,7 @@ Backup profiles can be customized to suit different needs, for example, targetin
 backup [-h] [-p PROFILE]
 ```
 
-#### :wrench: Configuration and Setup
+**Configuration and Setup:**
 
 This tool is meant to be flexible and allows a good degree of customization.
 Each backup profile has:
@@ -46,6 +41,7 @@ Each backup profile has:
 These information can be defined in configuration files under the `$backup_conf` configuration folder, this fodler is defined as a variable that can/should be modified in the `backup` script.
 
 Custom backup commands should be added to the `backup_env_files()` function in the `backup` script. for example:
+
 - backing up vscode extension list using the command: `code --list-extensions --profile $vscode_profile`
 
 Under `$backup_conf` there should be 2 files:
@@ -96,8 +92,6 @@ Under `$backup_conf` there should be 2 files:
 ---
 
 ### remote_sync
-
-#### :speech_balloon: Description
 
 This script syncs files from/to a remote host using the rsync tool. Before sending or fetching files it will first perform a dry run and display would-be-copied files with a custom folder tree depth.
 
