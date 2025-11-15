@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+set -e
+set -o pipefail
+
+###################
+## Restore script for backup_sync
+
+LOG_SUCCESS="success_restore.log"
+LOG_ERROR="error_restore.log"
+BACKUP_CONF="$HOME/.backup_config"
+TIMESTAMP_START=$(date +%Y-%m-%d_%H-%M-%S)
+LOG_FILE=""
+
+############# Functions
+
+display_usage() {
+    echo "Usage: restore -p PROFILE [-n] ACTION"
+    echo
+    echo "ACTION: one of: env | vscode | extensions | src | all"
+    echo "  env        Restore environment files listed in profile"
+    echo "  vscode     Restore VS Code User settings"
+    echo "  extensions Install extensions from saved list"
+    echo "  src        Restore profile src_folder from backup device"
+    echo "  all        Restore env + vscode + extensions + src"
+    echo
+}
+
+display_help() {
+    display_usage
+    echo "Examples:"
+    echo "  restore -p full all"
+    echo "  restore -p lite vscode"
+}
+
+exit_error() {
+    display_usage
+    exit 1
+}
+
+log() {
+    local message=$1
+    local timestamp=$(date +%Y-%m-%d_%H:%M:%S)
+    echo "$message" >&2
+    if [[ -n "$LOG_FILE" ]]; then
+        echo "$timestamp | $message" >> "$LOG_FILE"
+    fi
+}
+
+log_info() { log "[INFO] $1"; }
+log_error() { log "[ERROR] $1"; }
+log_section() { log "======== $1 ========"; }
+
+confirm() {
+    local prompt=${1:-"Are you sure? [y/N] "}
+    read -p "$prompt" answer
+    answer=${answer:-N}
+    [[ $answer == [Yy] ]]
+}
+
+read_profile_vars() {
+    exclusion_file="$BACKUP_CONF/backup_${profile}_exclusion"
+    if [[ -f $exclusion_file ]]; then
+        log_info "Reading exclusion list from: $exclusion_file"
+    else
+        log_error "Exclusion file not found: $exclusion_file"
+        exit_error
+    fi
+
+    vars_file="$BACKUP_CONF/backup_${profile}_vars"
+    if [[ -f $vars_file ]]; then
+        log_info "Reading backup vars from: $vars_file"
+        # shellcheck source=/dev/null
+        source $vars_file
+    else
+        log_error "Variables file not found: $vars_file"
+        exit_error
+    fi
+}
+
+restore_env_files() {
+    env_files_dest="$device_path/env_files"
+    if [[ ! -d $env_files_dest ]]; then
+        log_error "Env files backup not found at: $env_files_dest"
+        return 1
+    fi
+
+    log_section "RESTORING ENV FILES"
+    if [[ ${#env_files[@]} -eq 0 ]]; then
+        log_info "No env files configured for profile"
+        return 0
+    fi
+
+    for file in "${env_files[@]}"; do
+        base=$(basename "$file")
+        src="$env_files_dest/$base"
+        if [[ ! -e $src ]]; then
+            log_error "Backup missing for $file (expected $src)"
+            continue
+        fi
+
+        dst_dir=$(dirname "$file")
+        mkdir -p "$dst_dir"
+
+        if [[ -d $src ]]; then
+            log_info "Restoring directory $file from $src/ -> $file/"
+            rsync_opts=( -av --inplace )
+            if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+            rsync "${rsync_opts[@]}" "$src/" "$file/"
+        else
+            log_info "Restoring file $file from $src -> $file"
+            rsync_opts=( -av --inplace )
+            if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+            rsync "${rsync_opts[@]}" "$src" "$file"
+        fi
+    done
+
+    log_section "ENV FILES RESTORE COMPLETE"
+}
+
+restore_vscode_user() {
+    env_files_dest="$device_path/env_files"
+    src="$env_files_dest/vscode/User"
+    dst="$HOME/.config/Code/User"
+
+    if [[ ! -d $src ]]; then
+        log_error "VS Code user backup not found at: $src"
+        return 1
+    fi
+
+    log_section "RESTORING VS CODE USER SETTINGS"
+    mkdir -p "$dst"
+    rsync_opts=( -av --inplace )
+    if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+    rsync "${rsync_opts[@]}" "$src/" "$dst/"
+    log_info "Restored VS Code User settings to $dst"
+    log_section "VS CODE RESTORE COMPLETE"
+}
+
+restore_extensions_from_list() {
+    env_files_dest="$device_path/env_files"
+    list_file="$env_files_dest/vscode/code_extension_list"
+    if [[ ! -f $list_file ]]; then
+        log_error "Extensions list not found: $list_file"
+        return 1
+    fi
+
+    log_section "RESTORING VS CODE EXTENSIONS (from list)"
+    if [[ $DRY_RUN == true ]]; then
+        log_info "Dry-run mode: will print install commands only"
+        awk '{print "code --install-extension " $0}' "$list_file"
+    else
+        # install extensions one per line
+        while IFS= read -r ext; do
+            if [[ -n $ext ]]; then
+                log_info "Installing extension: $ext"
+                code --install-extension "$ext" || log_error "Failed to install $ext"
+            fi
+        done < "$list_file"
+    fi
+    log_section "EXTENSIONS RESTORE COMPLETE"
+}
+
+restore_extensions_binaries() {
+    env_files_dest="$device_path/env_files"
+    src="$env_files_dest/vscode/extensions"
+    dst="$HOME/.vscode/extensions"
+
+    if [[ ! -d $src ]]; then
+        log_error "Extensions binary backup not found at: $src"
+        return 1
+    fi
+
+    log_section "RESTORING VS CODE EXTENSION BINARIES"
+    mkdir -p "$dst"
+    rsync_opts=( -av --inplace )
+    if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+    rsync "${rsync_opts[@]}" "$src/" "$dst/"
+    log_section "EXTENSION BINARIES RESTORE COMPLETE"
+}
+
+restore_src_folder() {
+    log_section "RESTORING SRC FOLDER"
+    src="$device_path/$dev_dest_folder/"
+    dst="$src_folder/"
+
+    if [[ ! -d $device_path/$dev_dest_folder ]]; then
+        log_error "Backup of source folder not found at: $device_path/$dev_dest_folder"
+        return 1
+    fi
+
+    log_info "About to rsync from $src -> $dst"
+    if [[ $DRY_RUN == true ]]; then
+        rsync -avn --inplace --delete --exclude-from=$exclusion_file "$src" "$dst"
+    else
+        # prompt for confirmation before overwriting local files
+        if confirm "This will overwrite files in $dst. Proceed? [y/N] "; then
+            rsync -av --inplace --delete --exclude-from=$exclusion_file "$src" "$dst"
+            log_info "Restored source folder to $dst"
+        else
+            log_info "Skipped restoring source folder"
+        fi
+    fi
+    log_section "SRC RESTORE COMPLETE"
+}
+
+### Main
+DRY_RUN=false
+profile=""
+
+while getopts :p:hn option; do
+    case $option in
+        p) profile=$OPTARG ;;
+        n) DRY_RUN=true ;;
+        h) display_help; exit 0 ;;
+        :) echo "Missing argument for -$OPTARG"; exit_error ;;
+        ?) echo "Unknown option -$OPTARG"; exit_error ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+ACTION=${1:-}
+
+if [[ -z $profile || -z $ACTION ]]; then
+    display_usage
+    exit 1
+fi
+
+read_profile_vars
+
+read -p "Device name [$default_device_name]: " device_name
+device_name=${device_name:-"$default_device_name"}
+device_path="/run/media/$USER/$device_name"
+dest_folder="$device_path/$dev_dest_folder"
+LOG_FILE="$device_path/restore_$TIMESTAMP_START.log"
+
+if [[ ! -d $device_path ]]; then
+    log_error "Backup device not found at: $device_path"
+    exit 1
+fi
+
+log_section "STARTING RESTORE"
+log_info "Profile: $profile"
+log_info "Device: $device_path"
+log_info "Action: $ACTION"
+
+case $ACTION in
+    env)
+        restore_env_files
+        ;;
+    vscode)
+        restore_vscode_user
+        ;;
+    extensions)
+        restore_extensions_from_list
+        ;;
+    extensions-bin)
+        restore_extensions_binaries
+        ;;
+    src)
+        restore_src_folder
+        ;;
+    all)
+        restore_env_files
+        restore_vscode_user
+        restore_extensions_from_list
+        restore_src_folder
+        ;;
+    *)
+        echo "Unknown action: $ACTION"
+        display_usage
+        exit 1
+        ;;
+esac
+
+log_section "RESTORE COMPLETE"
+
+exit 0
