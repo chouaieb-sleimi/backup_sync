@@ -1,0 +1,4 @@
+vms/*
+#tmp/*
+storage/os/*
+projects/dev/pipeline_remote_data

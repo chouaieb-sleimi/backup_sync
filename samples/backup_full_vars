@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+DEFAULT_DEVICE_NAME="Backup"
+DEV_DEST_FOLDER="home"
+VSCODE_PROFILE="base"
+SRC_FOLDER=$HOME
+ENV_FILES=(
+    /etc/hosts
+)

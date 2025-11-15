@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+DEFAULT_DEVICE_NAME="BackupLite"
+DEV_DEST_FOLDER="tech"
+VSCODE_PROFILE="base"
+SRC_FOLDER="$HOME/tech/"
+ENV_FILES=(
+    /etc/hosts
+    $HOME/.bashrc
+    $HOME/.bashrc.d
+    $HOME/.bash_profile
+    $HOME/.ssh
+    $HOME/.backup_config
+    $HOME/bin
+    $HOME/Documents
+)

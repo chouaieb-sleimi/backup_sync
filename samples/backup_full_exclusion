@@ -1,0 +1,7 @@
+.cache/
+.var/
+.local/share/containers/storage/
+Downloads/games/
+Downloads/videos/
+tech/vms/*
+#tech/tmp/*
