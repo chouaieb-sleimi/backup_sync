@@ -4,24 +4,24 @@
 ###################
 ## Variables
 
-LOG_SUCCESS="success_backup.log"
-LOG_ERROR="error_backup.log"
 BACKUP_CONF="$HOME/.backup_config"
 TIMESTAMP_START=$(date +%Y-%m-%d_%H-%M-%S)
+LOG_SUCCESS="success_backup.log"
+LOG_ERROR="error_backup.log"
 LOG_FILE=""
 
 # defined in $BACKUP_CONF/backup_${PROFILE}_vars
 #  # backup source paths
-#  src_folder=
-#  env_files=()
+#  SRC_FOLDER=
+#  ENV_FILES=()
 #
 #  # backup destintaion and device paths
-#  default_device_name=
-#  device_name=
-#  device_path=
-#  dest_folder=
+#  DEFAULT_DEVICE_NAME=
+#  DEVICE_NAME=
+#  DEVICE_PATH=
+#  DEST_FOLDER=
 #
-#  vscode_profile="base"
+#  VSCODE_PROFILE="base"
 
 ###################
 ## Functions
@@ -39,10 +39,10 @@ display_help() {
     echo "\"backup_[PROFILE]_vars\" is a shell script that defines variables specific to each backup profile. \"backup_[PROFILE]_exclusion\" file defines files and/or folders that are excluded from the backup source."
     echo
     echo "backup_[PROFILE]_vars example:"
-    echo "    src_folder=\$HOME"
-    echo "    env_files=(/etc/hosts)"
-    echo "    device_path=/run/media/dave/backupUSB"
-    echo "    dest_folder=\$device_path/homeBackup"
+    echo "    SRC_FOLDER=\$HOME"
+    echo "    ENV_FILES=(/etc/hosts)"
+    echo "    DEVICE_PATH=/run/media/dave/backupUSB"
+    echo "    DEST_FOLDER=\$DEVICE_PATH/homeBackup"
     echo
 }
 
@@ -92,17 +92,17 @@ main() {
     while getopts :p:h option; do
         case $option in
         p)
-            profile=$OPTARG
+            PROFILE=$OPTARG
             read_profile_vars
-            read -p "Device name [$default_device_name]: " device_name
-            device_name=${device_name:-"$default_device_name"}
-            device_path="/run/media/$USER/$device_name"
-            dest_folder="$device_path/$dev_dest_folder"
-            LOG_FILE="$device_path/backup_$TIMESTAMP_START.log"
+            read -p "Device name [$DEFAULT_DEVICE_NAME]: " device_name
+            DEVICE_NAME=${DEVICE_NAME:-"$DEFAULT_DEVICE_NAME"}
+            DEVICE_PATH="/run/media/$USER/$DEVICE_NAME"
+            DEST_FOLDER="$DEVICE_PATH/$DEV_DEST_FOLDER"
+            LOG_FILE="$DEVICE_PATH/backup_$TIMESTAMP_START.log"
 
-            [[ ! -d $src_folder ]] && echo "ERROR | Source folder $src_folder not found" && exit_error
-            [[ ! -d $device_path ]] && echo "ERROR | Backup device \"$device_name\" not found at $device_path" && exit_error
-            [[ ! -d "$dest_folder" ]] && mkdir -p "$dest_folder" && echo "[INFO] Created destination folder: $dest_folder"
+            [[ ! -d $SRC_FOLDER ]] && echo "ERROR | Source folder $SRC_FOLDER not found" && exit_error
+            [[ ! -d $DEVICE_PATH ]] && echo "ERROR | Backup device \"$DEVICE_NAME\" not found at $DEVICE_PATH" && exit_error
+            [[ ! -d "$DEST_FOLDER" ]] && mkdir -p "$DEST_FOLDER" && echo "[INFO] Created destination folder: $DEST_FOLDER"
 
             backup
             analyse_backup_results
@@ -130,33 +130,33 @@ main() {
 # Read variables from config files.
 #
 # This function reads 2 config files under "$BACKUP_CONF" folder:
-# - "backup_${profile}_exclusion" that defines files and/or folders that are excluded from the backup source.
-# - "backup_${profile}_vars" that defines variables specific to each backup profile.
+# - "backup_${PROFILE}_exclusion" that defines files and/or folders that are excluded from the backup source.
+# - "backup_${PROFILE}_vars" that defines variables specific to each backup profile.
 #
 # If any of the config files doesn't exist, this function will exit with an error code.
 read_profile_vars() {
-    # read exclusion_file
-    exclusion_file="$BACKUP_CONF/backup_${profile}_exclusion"
-    if [[ -f $exclusion_file ]]; then
-        echo "[INFO] Reading exclusion list from: $exclusion_file"
+    # read EXCLUSION_FILE
+    EXCLUSION_FILE="$BACKUP_CONF/backup_${PROFILE}_exclusion"
+    if [[ -f $EXCLUSION_FILE ]]; then
+        echo "[INFO] Reading exclusion list from: $EXCLUSION_FILE"
     else
-        echo "[ERROR] Exclusion file not found: $exclusion_file"
+        echo "[ERROR] Exclusion file not found: $EXCLUSION_FILE"
         exit_error
     fi
 
-    # read vars_file
-    vars_file="$BACKUP_CONF/backup_${profile}_vars"
-    if [[ -f $vars_file ]]; then
-        echo "[INFO] Reading backup vars from: $vars_file"
-        source $vars_file
+    # read VARS_FILE
+    VARS_FILE="$BACKUP_CONF/backup_${PROFILE}_vars"
+    if [[ -f $VARS_FILE ]]; then
+        echo "[INFO] Reading backup vars from: $VARS_FILE"
+        source $VARS_FILE
     else
-        echo "[ERROR] Variables file not found: $vars_file"
+        echo "[ERROR] Variables file not found: $VARS_FILE"
         exit_error
     fi
     echo ""
 }
 
-# backup() - backs up files based on the backup profile defined in $BACKUP_CONF/backup_${profile}_vars and $BACKUP_CONF/backup_${profile}_exclusion
+# backup() - backs up files based on the backup profile defined in $BACKUP_CONF/backup_${PROFILE}_vars and $BACKUP_CONF/backup_${PROFILE}_exclusion
 #
 # This function does the following operations:
 # - clean previous timestamp
@@ -166,12 +166,12 @@ read_profile_vars() {
 backup() {
     log_section "STARTING BACKUP"
     log_info "Log file: $LOG_FILE"
-    log_info "Backup Profile: $profile"
-    log_info "Backup Source: $src_folder"
-    log_info "Backup Destination: $dest_folder"
+    log_info "Backup Profile: $PROFILE"
+    log_info "Backup Source: $SRC_FOLDER"
+    log_info "Backup Destination: $DEST_FOLDER"
     
     # clean previous timestamp
-    [[ $(find $device_path/ -maxdepth 1 -name "timestamp*") ]] && rm $device_path/timestamp*
+    [[ $(find $DEVICE_PATH/ -maxdepth 1 -name "timestamp*") ]] && rm $DEVICE_PATH/timestamp*
 
     # write new timestamp
     cat >$LOG_FILE <<EOF
@@ -182,74 +182,74 @@ EOF
 
     backup_env_files
 
-    log_info "Starting backup of $src_folder to $dest_folder"
-    # backup src_folder
+    log_info "Starting backup of $SRC_FOLDER to $DEST_FOLDER"
+    # backup SRC_FOLDER
     rsync -av --inplace \
         --delete --delete-excluded \
-        --exclude-from=$exclusion_file \
-        $src_folder/ $dest_folder/ \
-        > >(tee $device_path/$LOG_SUCCESS) \
-        2> >(tee $device_path/$LOG_ERROR)
-    log_info "Completed backup of $src_folder to $dest_folder"
+        --exclude-from=$EXCLUSION_FILE \
+        $SRC_FOLDER/ $DEST_FOLDER/ \
+        > >(tee $DEVICE_PATH/$LOG_SUCCESS) \
+        2> >(tee $DEVICE_PATH/$LOG_ERROR)
+    log_info "Completed backup of $SRC_FOLDER to $DEST_FOLDER"
     log_section "BACKUP COMPLETE"
 }
 
-# backup_env_files() - backs up environment files and folders to $env_files_dest
+# backup_env_files() - backs up environment files and folders to $ENV_FILES_DEST
 #
 # This function backs up:
 # - /etc/yum.repos.d/
-# - package list to $env_files_dest/package_list
-# - env_files defined in backup_${profile}_vars file
-# - vs code's extension list to $env_files_dest/code_extensions
+# - package list to $ENV_FILES_DEST/package_list
+# - env_files defined in backup_${PROFILE}_vars file
+# - vs code's extension list to $ENV_FILES_DEST/code_extensions
 backup_env_files() {
     log_section "BACKING UP ENVIRONMENT FILES"
     
-    env_files_dest="$device_path/env_files"
-    # create $env_files_dest dir
-    if [[ ! -d $env_files_dest ]]; then
-        mkdir -p $env_files_dest
-        log_info "Created directory: $env_files_dest"
+    ENV_FILES_DEST="$DEVICE_PATH/env_files"
+    # create $ENV_FILES_DEST dir
+    if [[ ! -d $ENV_FILES_DEST ]]; then
+        mkdir -p $ENV_FILES_DEST
+        log_info "Created directory: $ENV_FILES_DEST"
     fi
 
     # backup repo list
     rsync -av --inplace \
         --delete \
         --chown=chouaieb:chouaieb \
-        /etc/yum.repos.d $env_files_dest/
-    log_info "Backed up /etc/yum.repos.d to $env_files_dest/yum.repos.d"
+        /etc/yum.repos.d $ENV_FILES_DEST/
+    log_info "Backed up /etc/yum.repos.d to $ENV_FILES_DEST/yum.repos.d"
 
     # backup package list
-    rpm -qa >$env_files_dest/package_list
-    log_info "Backed up package list to $env_files_dest/package_list"
+    rpm -qa >$ENV_FILES_DEST/package_list
+    log_info "Backed up package list to $ENV_FILES_DEST/package_list"
 
     # backup env files
-    if [[ ${#env_files[@]} -eq 0 ]]; then
+    if [[ ${#ENV_FILES[@]} -eq 0 ]]; then
         log_info "No environment files to backup"
     else
         log_info "Backing up environment files..."
         # Create metadata file to preserve original paths
-        > "$env_files_dest/env_files.manifest"
-        for file in ${env_files[@]}; do
+        > "$ENV_FILES_DEST/env_files.manifest"
+        for file in ${ENV_FILES[@]}; do
             rsync -av --inplace \
                 --delete \
-                $file $env_files_dest/
+                $file $ENV_FILES_DEST/
             log_info "    Backed up: $file"
             
             # Record original path in manifest for restore
             if [[ -e $file ]]; then
                 # Use base name as key, original path as value
                 base=$(basename "$file")
-                echo "$base|$file" >> "$env_files_dest/env_files.manifest"
+                echo "$base|$file" >> "$ENV_FILES_DEST/env_files.manifest"
             fi
         done
     fi
 
     # vscode backup
-    rsync -av --inplace --delete "$HOME/.config/Code/User" "$env_files_dest/vscode/"
-    log_info "Backed up VS Code user settings to $env_files_dest/vscode/User"
+    rsync -av --inplace --delete "$HOME/.config/Code/User" "$ENV_FILES_DEST/vscode/"
+    log_info "Backed up VS Code user settings to $ENV_FILES_DEST/vscode/User"
 
-    code --list-extensions --profile $vscode_profile >$env_files_dest/vscode/code_extension_list
-    log_info "Backed up VS Code extensions list to $env_files_dest/vscode/code_extension_list"
+    code --list-extensions --profile $VSCODE_PROFILE >$ENV_FILES_DEST/vscode/code_extension_list
+    log_info "Backed up VS Code extensions list to $ENV_FILES_DEST/vscode/code_extension_list"
 
 
     
@@ -257,10 +257,10 @@ backup_env_files() {
 }
 
 analyse_backup_results() {
-    if [[ -f $device_path/$LOG_ERROR && -f $device_path/$LOG_SUCCESS ]]; then
-        success_count=$(wc -l $device_path/$LOG_SUCCESS | cut -d" " -f1)
+    if [[ -f $DEVICE_PATH/$LOG_ERROR && -f $DEVICE_PATH/$LOG_SUCCESS ]]; then
+        success_count=$(wc -l $DEVICE_PATH/$LOG_SUCCESS | cut -d" " -f1)
         success_count=$(($success_count - 4))
-        errors_count=$(wc -l $device_path/$LOG_ERROR | cut -d" " -f1)
+        errors_count=$(wc -l $DEVICE_PATH/$LOG_ERROR | cut -d" " -f1)
 
         echo
         echo "- $success_count successful operations"
@@ -270,7 +270,7 @@ analyse_backup_results() {
             read -p "Review errors? [Y/n] " read_errors
             read_errors=${read_errors:-y}
 
-            [[ $read_errors == "y" ]] && less $device_path/$LOG_ERROR
+            [[ $read_errors == "y" ]] && less $DEVICE_PATH/$LOG_ERROR
         fi
     fi
 }

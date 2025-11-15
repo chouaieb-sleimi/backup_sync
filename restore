@@ -58,36 +58,36 @@ confirm() {
 }
 
 read_profile_vars() {
-    exclusion_file="$BACKUP_CONF/backup_${profile}_exclusion"
-    if [[ -f $exclusion_file ]]; then
-        log_info "Reading exclusion list from: $exclusion_file"
+    EXCLUSION_FILE="$BACKUP_CONF/backup_${PROFILE}_exclusion"
+    if [[ -f $EXCLUSION_FILE ]]; then
+        log_info "Reading exclusion list from: $EXCLUSION_FILE"
     else
-        log_error "Exclusion file not found: $exclusion_file"
+        log_error "Exclusion file not found: $EXCLUSION_FILE"
         exit_error
     fi
 
-    vars_file="$BACKUP_CONF/backup_${profile}_vars"
-    if [[ -f $vars_file ]]; then
-        log_info "Reading backup vars from: $vars_file"
+    VARS_FILE="$BACKUP_CONF/backup_${PROFILE}_vars"
+    if [[ -f $VARS_FILE ]]; then
+        log_info "Reading backup vars from: $VARS_FILE"
         # shellcheck source=/dev/null
-        source $vars_file
+        source $VARS_FILE
     else
-        log_error "Variables file not found: $vars_file"
+        log_error "Variables file not found: $VARS_FILE"
         exit_error
     fi
 }
 
 restore_env_files() {
-    env_files_dest="$device_path/env_files"
-    if [[ ! -d $env_files_dest ]]; then
-        log_error "Env files backup not found at: $env_files_dest"
+    ENV_FILES_DEST="$DEVICE_PATH/env_files"
+    if [[ ! -d $ENV_FILES_DEST ]]; then
+        log_error "Env files backup not found at: $ENV_FILES_DEST"
         return 1
     fi
 
     log_section "RESTORING ENV FILES"
     
     # Check if manifest exists (new format with path preservation)
-    manifest="$env_files_dest/env_files.manifest"
+    manifest="$ENV_FILES_DEST/env_files.manifest"
     if [[ -f $manifest ]]; then
         log_info "Using manifest to restore env files with original paths"
         while IFS='|' read -r base original_path; do
@@ -95,7 +95,7 @@ restore_env_files() {
                 continue
             fi
             
-            src="$env_files_dest/$base"
+            src="$ENV_FILES_DEST/$base"
             if [[ ! -e $src ]]; then
                 log_error "Backup missing for $original_path (expected $src)"
                 continue
@@ -119,14 +119,14 @@ restore_env_files() {
     else
         # Fallback: use profile env_files array (old format compatibility)
         log_info "No manifest found, using profile env_files array"
-        if [[ ${#env_files[@]} -eq 0 ]]; then
+        if [[ ${#ENV_FILES[@]} -eq 0 ]]; then
             log_info "No env files configured for profile"
             return 0
         fi
 
-        for file in "${env_files[@]}"; do
+        for file in "${ENV_FILES[@]}"; do
             base=$(basename "$file")
-            src="$env_files_dest/$base"
+            src="$ENV_FILES_DEST/$base"
             if [[ ! -e $src ]]; then
                 log_error "Backup missing for $file (expected $src)"
                 continue
@@ -153,8 +153,8 @@ restore_env_files() {
 }
 
 restore_vscode_user() {
-    env_files_dest="$device_path/env_files"
-    src="$env_files_dest/vscode/User"
+    ENV_FILES_DEST="$DEVICE_PATH/env_files"
+    src="$ENV_FILES_DEST/vscode/User"
     dst="$HOME/.config/Code/User"
 
     if [[ ! -d $src ]]; then
@@ -172,8 +172,8 @@ restore_vscode_user() {
 }
 
 restore_extensions_from_list() {
-    env_files_dest="$device_path/env_files"
-    list_file="$env_files_dest/vscode/code_extension_list"
+    ENV_FILES_DEST="$DEVICE_PATH/env_files"
+    list_file="$ENV_FILES_DEST/vscode/code_extension_list"
     if [[ ! -f $list_file ]]; then
         log_error "Extensions list not found: $list_file"
         return 1
@@ -196,8 +196,8 @@ restore_extensions_from_list() {
 }
 
 restore_extensions_binaries() {
-    env_files_dest="$device_path/env_files"
-    src="$env_files_dest/vscode/extensions"
+    ENV_FILES_DEST="$DEVICE_PATH/env_files"
+    src="$ENV_FILES_DEST/vscode/extensions"
     dst="$HOME/.vscode/extensions"
 
     if [[ ! -d $src ]]; then
@@ -215,21 +215,21 @@ restore_extensions_binaries() {
 
 restore_src_folder() {
     log_section "RESTORING SRC FOLDER"
-    src="$device_path/$dev_dest_folder/"
-    dst="$src_folder/"
+    src="$DEVICE_PATH/$DEV_DEST_FOLDER/"
+    dst="$SRC_FOLDER/"
 
-    if [[ ! -d $device_path/$dev_dest_folder ]]; then
-        log_error "Backup of source folder not found at: $device_path/$dev_dest_folder"
+    if [[ ! -d $DEVICE_PATH/$DEV_DEST_FOLDER ]]; then
+        log_error "Backup of source folder not found at: $DEVICE_PATH/$DEV_DEST_FOLDER"
         return 1
     fi
 
     log_info "About to rsync from $src -> $dst"
     if [[ $DRY_RUN == true ]]; then
-        rsync -avn --inplace --delete --exclude-from=$exclusion_file "$src" "$dst"
+        rsync -avn --inplace --delete --exclude-from=$EXCLUSION_FILE "$src" "$dst"
     else
         # prompt for confirmation before overwriting local files
         if confirm "This will overwrite files in $dst. Proceed? [y/N] "; then
-            rsync -av --inplace --delete --exclude-from=$exclusion_file "$src" "$dst"
+            rsync -av --inplace --delete --exclude-from=$EXCLUSION_FILE "$src" "$dst"
             log_info "Restored source folder to $dst"
         else
             log_info "Skipped restoring source folder"
@@ -240,11 +240,11 @@ restore_src_folder() {
 
 ### Main
 DRY_RUN=false
-profile=""
+PROFILE=""
 
 while getopts :p:hn option; do
     case $option in
-        p) profile=$OPTARG ;;
+        p) PROFILE=$OPTARG ;;
         n) DRY_RUN=true ;;
         h) display_help; exit 0 ;;
         :) echo "Missing argument for -$OPTARG"; exit_error ;;
@@ -256,27 +256,27 @@ shift $((OPTIND-1))
 
 ACTION=${1:-}
 
-if [[ -z $profile || -z $ACTION ]]; then
+if [[ -z $PROFILE || -z $ACTION ]]; then
     display_usage
     exit 1
 fi
 
 read_profile_vars
 
-read -p "Device name [$default_device_name]: " device_name
-device_name=${device_name:-"$default_device_name"}
-device_path="/run/media/$USER/$device_name"
-dest_folder="$device_path/$dev_dest_folder"
-LOG_FILE="$device_path/restore_$TIMESTAMP_START.log"
+read -p "Device name [$DEFAULT_DEVICE_NAME]: " device_name
+DEVICE_NAME=${device_name:-"$DEFAULT_DEVICE_NAME"}
+DEVICE_PATH="/run/media/$USER/$DEVICE_NAME"
+DEST_FOLDER="$DEVICE_PATH/$DEV_DEST_FOLDER"
+LOG_FILE="$DEVICE_PATH/restore_$TIMESTAMP_START.log"
 
-if [[ ! -d $device_path ]]; then
-    log_error "Backup device not found at: $device_path"
+if [[ ! -d $DEVICE_PATH ]]; then
+    log_error "Backup device not found at: $DEVICE_PATH"
     exit 1
 fi
 
 log_section "STARTING RESTORE"
-log_info "Profile: $profile"
-log_info "Device: $device_path"
+log_info "Profile: $PROFILE"
+log_info "Device: $DEVICE_PATH"
 log_info "Action: $ACTION"
 
 case $ACTION in
