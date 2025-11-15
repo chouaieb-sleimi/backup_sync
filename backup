@@ -251,6 +251,15 @@ backup_env_files() {
     code --list-extensions --profile $VSCODE_PROFILE >$ENV_FILES_DEST/vscode/code_extension_list
     log_info "Backed up VS Code extensions list to $ENV_FILES_DEST/vscode/code_extension_list"
 
+    # backup the backup configuration itself to make backups portable
+    if [[ -d "$BACKUP_CONF" ]]; then
+        log_info "Packaging backup configuration from $BACKUP_CONF to $DEVICE_PATH/backup_config/"
+        rsync -av --delete "$BACKUP_CONF/" "$DEVICE_PATH/backup_config/"
+        log_info "Packaged backup configuration to $DEVICE_PATH/backup_config/"
+    else
+        log_info "No backup config directory found at $BACKUP_CONF, skipping packaging"
+    fi
+
 
     
     log_section "ENVIRONMENT FILES BACKUP COMPLETE"

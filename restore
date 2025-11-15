@@ -7,7 +7,7 @@ set -o pipefail
 
 LOG_SUCCESS="success_restore.log"
 LOG_ERROR="error_restore.log"
-BACKUP_CONF="$HOME/.backup_config"
+BACKUP_CONF_DEFAULT="$HOME/.backup_config"
 TIMESTAMP_START=$(date +%Y-%m-%d_%H-%M-%S)
 LOG_FILE=""
 
@@ -16,12 +16,13 @@ LOG_FILE=""
 display_usage() {
     echo "Usage: restore -p PROFILE [-n] ACTION"
     echo
-    echo "ACTION: one of: env | vscode | extensions | src | all"
+    echo "ACTION: one of: env | vscode | extensions | config | src | all"
     echo "  env        Restore environment files listed in profile"
     echo "  vscode     Restore VS Code User settings"
     echo "  extensions Install extensions from saved list"
+    echo "  config     Restore backup configuration (writes to $BACKUP_CONF_DEFAULT)"
     echo "  src        Restore profile src_folder from backup device"
-    echo "  all        Restore env + vscode + extensions + src"
+    echo "  all        Restore env + vscode + extensions + config + src"
     echo
 }
 
@@ -213,6 +214,32 @@ restore_extensions_binaries() {
     log_section "EXTENSION BINARIES RESTORE COMPLETE"
 }
 
+restore_config() {
+    log_section "RESTORING BACKUP CONFIG"
+    src="$DEVICE_PATH/backup_config"
+    # restore config into the local default config location (not the active BACKUP_CONF which may point to device)
+    dst="$BACKUP_CONF_DEFAULT"
+
+    if [[ ! -d $src ]]; then
+        log_error "Packaged backup config not found at: $src"
+        return 1
+    fi
+
+    log_info "About to restore backup config from $src -> $dst"
+    if [[ $DRY_RUN == true ]]; then
+        rsync -avn --inplace "$src/" "$dst/"
+    else
+        mkdir -p "$dst"
+        if confirm "This will overwrite or create files in $dst. Proceed? [y/N] "; then
+            rsync -av --inplace --delete "$src/" "$dst/"
+            log_info "Restored backup configuration to $dst"
+        else
+            log_info "Skipped restoring backup configuration"
+        fi
+    fi
+    log_section "CONFIG RESTORE COMPLETE"
+}
+
 restore_src_folder() {
     log_section "RESTORING SRC FOLDER"
     src="$DEVICE_PATH/$DEV_DEST_FOLDER/"
@@ -261,18 +288,30 @@ if [[ -z $PROFILE || -z $ACTION ]]; then
     exit 1
 fi
 
-read_profile_vars
-
 read -p "Device name [$DEFAULT_DEVICE_NAME]: " device_name
 DEVICE_NAME=${device_name:-"$DEFAULT_DEVICE_NAME"}
 DEVICE_PATH="/run/media/$USER/$DEVICE_NAME"
-DEST_FOLDER="$DEVICE_PATH/$DEV_DEST_FOLDER"
 LOG_FILE="$DEVICE_PATH/restore_$TIMESTAMP_START.log"
 
 if [[ ! -d $DEVICE_PATH ]]; then
     log_error "Backup device not found at: $DEVICE_PATH"
     exit 1
 fi
+
+# If the device contains a packaged backup config, use it for reading profile vars.
+if [[ -d "$DEVICE_PATH/backup_config" ]]; then
+    BACKUP_CONF="$DEVICE_PATH/backup_config"
+    log_info "Using packaged backup config from: $BACKUP_CONF"
+else
+    BACKUP_CONF="$BACKUP_CONF_DEFAULT"
+    log_info "Using local backup config at: $BACKUP_CONF"
+fi
+
+# Now read profile vars from the selected BACKUP_CONF
+read_profile_vars
+
+# With profile vars loaded, derive DEST_FOLDER (depends on DEV_DEST_FOLDER)
+DEST_FOLDER="$DEVICE_PATH/$DEV_DEST_FOLDER"
 
 log_section "STARTING RESTORE"
 log_info "Profile: $PROFILE"
@@ -288,6 +327,9 @@ case $ACTION in
         ;;
     extensions)
         restore_extensions_from_list
+        ;;
+    config)
+        restore_config
         ;;
     extensions-bin)
         restore_extensions_binaries
