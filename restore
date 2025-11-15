@@ -85,34 +85,69 @@ restore_env_files() {
     fi
 
     log_section "RESTORING ENV FILES"
-    if [[ ${#env_files[@]} -eq 0 ]]; then
-        log_info "No env files configured for profile"
-        return 0
+    
+    # Check if manifest exists (new format with path preservation)
+    manifest="$env_files_dest/env_files.manifest"
+    if [[ -f $manifest ]]; then
+        log_info "Using manifest to restore env files with original paths"
+        while IFS='|' read -r base original_path; do
+            if [[ -z "$base" || -z "$original_path" ]]; then
+                continue
+            fi
+            
+            src="$env_files_dest/$base"
+            if [[ ! -e $src ]]; then
+                log_error "Backup missing for $original_path (expected $src)"
+                continue
+            fi
+
+            dst_dir=$(dirname "$original_path")
+            mkdir -p "$dst_dir"
+
+            if [[ -d $src ]]; then
+                log_info "Restoring directory: $original_path"
+                rsync_opts=( -av --inplace )
+                if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+                rsync "${rsync_opts[@]}" "$src/" "$original_path/"
+            else
+                log_info "Restoring file: $original_path"
+                rsync_opts=( -av --inplace )
+                if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+                rsync "${rsync_opts[@]}" "$src" "$original_path"
+            fi
+        done < "$manifest"
+    else
+        # Fallback: use profile env_files array (old format compatibility)
+        log_info "No manifest found, using profile env_files array"
+        if [[ ${#env_files[@]} -eq 0 ]]; then
+            log_info "No env files configured for profile"
+            return 0
+        fi
+
+        for file in "${env_files[@]}"; do
+            base=$(basename "$file")
+            src="$env_files_dest/$base"
+            if [[ ! -e $src ]]; then
+                log_error "Backup missing for $file (expected $src)"
+                continue
+            fi
+
+            dst_dir=$(dirname "$file")
+            mkdir -p "$dst_dir"
+
+            if [[ -d $src ]]; then
+                log_info "Restoring directory $file from $src/ -> $file/"
+                rsync_opts=( -av --inplace )
+                if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+                rsync "${rsync_opts[@]}" "$src/" "$file/"
+            else
+                log_info "Restoring file $file from $src -> $file"
+                rsync_opts=( -av --inplace )
+                if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
+                rsync "${rsync_opts[@]}" "$src" "$file"
+            fi
+        done
     fi
-
-    for file in "${env_files[@]}"; do
-        base=$(basename "$file")
-        src="$env_files_dest/$base"
-        if [[ ! -e $src ]]; then
-            log_error "Backup missing for $file (expected $src)"
-            continue
-        fi
-
-        dst_dir=$(dirname "$file")
-        mkdir -p "$dst_dir"
-
-        if [[ -d $src ]]; then
-            log_info "Restoring directory $file from $src/ -> $file/"
-            rsync_opts=( -av --inplace )
-            if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
-            rsync "${rsync_opts[@]}" "$src/" "$file/"
-        else
-            log_info "Restoring file $file from $src -> $file"
-            rsync_opts=( -av --inplace )
-            if [[ $DRY_RUN == true ]]; then rsync_opts+=( --dry-run ); fi
-            rsync "${rsync_opts[@]}" "$src" "$file"
-        fi
-    done
 
     log_section "ENV FILES RESTORE COMPLETE"
 }

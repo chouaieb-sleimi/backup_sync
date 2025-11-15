@@ -227,11 +227,20 @@ backup_env_files() {
         log_info "No environment files to backup"
     else
         log_info "Backing up environment files..."
+        # Create metadata file to preserve original paths
+        > "$env_files_dest/env_files.manifest"
         for file in ${env_files[@]}; do
             rsync -av --inplace \
                 --delete \
                 $file $env_files_dest/
             log_info "    Backed up: $file"
+            
+            # Record original path in manifest for restore
+            if [[ -e $file ]]; then
+                # Use base name as key, original path as value
+                base=$(basename "$file")
+                echo "$base|$file" >> "$env_files_dest/env_files.manifest"
+            fi
         done
     fi
 
