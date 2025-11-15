@@ -13,7 +13,8 @@
 - [3. Extended VS Code backup support](#3-extended-vs-code-backup-support)
 - [4. Created comprehensive restore script](#4-created-comprehensive-restore-script)
 - [5. Implemented env_files.manifest for path preservation](#5-implemented-env_filesmanifest-for-path-preservation)
-- [6. Documentation](#6-documentation)
+- [6. Packaged backup config & restore-config portability](#6-packaged-backup-config--restore-config-portability)
+- [7. Documentation](#7-documentation)
 - [Summary of files modified](#summary-of-files-modified)
 - [Usage examples](#usage-examples)
 - [Testing recommendations](#testing-recommendations)
@@ -410,7 +411,37 @@ This ensures existing backups continue to work with the new restore script.
 
 ---
 
-## 6. Documentation
+## 6. Packaged backup config & restore-config portability
+
+### Problem
+
+Users of the backup/restore tooling need restores to be self-contained. If the local `~/.backup_config` is missing on the target machine, restores previously required copying profile files first. That made migrations and restores on fresh systems inconvenient.
+
+### Solution
+
+When a backup runs the `backup` script now copies the entire configuration directory (`$BACKUP_CONF`, normally `~/.backup_config/`) to the device under `$DEVICE_PATH/backup_config/`.
+
+On `restore`, the script checks the mounted device for `backup_config/`. If present it will prefer sourcing profile variables from the packaged config on the device. If no packaged config exists, `restore` falls back to the local default config directory (referred to in the code as `BACKUP_CONF_DEFAULT`, typically `~/.backup_config/`).
+
+Additionally a `restore config` action was added to the `restore` script which will copy the packaged config from the device back into the local default config directory (with confirmation). This helps recover configuration files that were lost locally.
+
+### Implementation details
+
+- `backup` now performs: `rsync -av --delete "$BACKUP_CONF/" "$DEVICE_PATH/backup_config/"` as part of the env/config packaging phase.
+- `restore` detects the packaged config with: `if [[ -d "$DEVICE_PATH/backup_config" ]]; then BACKUP_CONF="$DEVICE_PATH/backup_config"; else BACKUP_CONF="$BACKUP_CONF_DEFAULT"; fi` and then sources the profile vars from `$BACKUP_CONF/backup_${PROFILE}_vars`.
+- New function `restore_config()` copies the packaged config into the local `BACKUP_CONF_DEFAULT` with a confirmation prompt.
+
+### Benefits
+
+- Backups become fully self-contained and portable.
+- Restores can be performed on systems without pre-existing profile files.
+- Users can recover their backup profiles via `restore config` if the local config was lost.
+
+### Uppercase profile var refactor
+
+As part of the portability and clarity work profile variable names were standardized to UPPERCASE in the shipped profile files (for example: `SRC_FOLDER`, `ENV_FILES`, `VSCODE_PROFILE`, `DEFAULT_DEVICE_NAME`, `DEV_DEST_FOLDER`). The scripts (`backup`, `restore`) were updated to reference the uppercase names. Documentation examples were updated to match.
+
+## 7. Documentation
 
 ### Files created/updated
 
